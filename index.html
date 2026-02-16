@@ -12,6 +12,7 @@
         .gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
     </style>
 </head>
 <body class="text-gray-800">
@@ -27,36 +28,34 @@
         <!-- Tabs -->
         <div class="flex justify-center mb-8 bg-white p-1 rounded-2xl shadow-md max-w-xs mx-auto border border-blue-50">
             <button onclick="showTab('survey-tab')" id="btn-survey" class="flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white">الاستطلاع</button>
-            <button onclick="showTab('admin-tab')" id="btn-admin" class="flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500">النتائج</button>
+            <button onclick="handleAdminAccess()" id="btn-admin" class="flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500">النتائج</button>
         </div>
 
         <!-- Survey Section -->
         <section id="survey-tab" class="tab-content active">
-            <div class="bg-white rounded-2xl shadow-lg p-6 md:p-10">
+            <div class="bg-white rounded-2xl shadow-lg p-6 md:p-10 border border-gray-100">
                 <form id="surveyForm" class="space-y-8">
                     <!-- Personal Info -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-xl">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-xl border border-blue-100">
                         <div class="md:col-span-2 border-b border-blue-100 pb-2"><h3 class="font-bold text-blue-800">بيانات الهوية</h3></div>
                         <div>
-                            <label class="block text-sm font-bold mb-2">اسم الطالب</label>
-                            <input type="text" name="studentName" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                            <label class="block text-sm font-bold mb-2 text-gray-700">اسم الطالب</label>
+                            <input type="text" name="studentName" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
                         </div>
                         <div>
-                            <label class="block text-sm font-bold mb-2">اسم ولي الأمر</label>
-                            <input type="text" name="parentName" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                            <label class="block text-sm font-bold mb-2 text-gray-700">اسم ولي الأمر</label>
+                            <input type="text" name="parentName" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
                         </div>
                         <div>
-                            <label class="block text-sm font-bold mb-2">الشعبة الدراسية</label>
-                            <input type="text" name="classSection" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                            <label class="block text-sm font-bold mb-2 text-gray-700">الشعبة الدراسية</label>
+                            <input type="text" name="classSection" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
                         </div>
                     </div>
 
-                    <!-- Questions -->
-                    <div class="space-y-10" id="questionsContainer">
-                        <!-- Questions will be injected by JS for stability -->
-                    </div>
+                    <!-- Questions Container -->
+                    <div class="space-y-10" id="questionsContainer"></div>
 
-                    <button type="submit" class="w-full gradient-header text-white font-bold py-4 rounded-xl shadow-lg hover:scale-[1.01] transition-transform text-lg">
+                    <button type="submit" class="w-full gradient-header text-white font-bold py-4 rounded-xl shadow-lg hover:opacity-90 transition-all text-lg">
                         إرسال الاستطلاع
                     </button>
                 </form>
@@ -66,28 +65,31 @@
         <!-- Admin Section -->
         <section id="admin-tab" class="tab-content">
             <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                    <h2 class="text-2xl font-bold text-gray-800">لوحة تحكم المعلم</h2>
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b pb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">لوحة تحكم النتائج</h2>
+                        <p class="text-sm text-gray-500 mt-1 italic">خاصة بالأستاذ محمد المنتشري</p>
+                    </div>
                     <div class="flex gap-2">
-                        <button onclick="exportToExcel()" class="bg-green-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors">تصدير Excel</button>
-                        <button onclick="clearData()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm border border-red-100">مسح الكل</button>
+                        <button onclick="exportToExcel()" class="bg-green-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-sm">تصدير Excel</button>
+                        <button onclick="clearData()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm border border-red-100 hover:bg-red-100">مسح البيانات</button>
                     </div>
                 </div>
 
-                <div id="statsSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 text-center"></div>
+                <div id="statsSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"></div>
 
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto rounded-xl border border-gray-100">
                     <table class="w-full text-right">
                         <thead>
-                            <tr class="bg-gray-50 text-gray-600">
+                            <tr class="bg-gray-50 text-gray-600 uppercase text-xs">
                                 <th class="p-4 border-b">الطالب</th>
                                 <th class="p-4 border-b">ولي الأمر</th>
                                 <th class="p-4 border-b">الشعبة</th>
                                 <th class="p-4 border-b">التقييم</th>
-                                <th class="p-4 border-b">إجراء</th>
+                                <th class="p-4 border-b text-center">إجراء</th>
                             </tr>
                         </thead>
-                        <tbody id="resultsBody"></tbody>
+                        <tbody id="resultsBody" class="text-sm"></tbody>
                     </table>
                 </div>
             </div>
@@ -95,52 +97,66 @@
     </main>
 
     <!-- Success Modal -->
-    <div id="successModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl">
-            <div class="text-green-500 text-6xl mb-4">✓</div>
-            <h3 class="text-2xl font-bold mb-2">شكراً لكم</h3>
-            <p class="text-gray-600 mb-6">تم استلام ردكم بنجاح وتم حفظه في النظام.</p>
-            <button onclick="closeModal()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold">إغلاق</button>
+    <div id="successModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl">
+            <div class="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold">✓</div>
+            <h3 class="text-2xl font-bold mb-2">تم بنجاح</h3>
+            <p class="text-gray-600 mb-6 font-medium">تم استلام ردكم وحفظه ضمن النتائج.</p>
+            <button onclick="closeModal()" class="w-full py-3 gradient-header text-white rounded-xl font-bold">إغلاق</button>
+        </div>
+    </div>
+
+    <!-- Auth Password Modal -->
+    <div id="authModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-6 rounded-2xl max-w-sm w-full shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-center">الدخول للنتائج</h3>
+            <p class="text-sm text-gray-500 mb-4 text-center">يرجى إدخال كلمة المرور الخاصة بالأستاذ محمد المنتشري</p>
+            <input type="password" id="adminPassword" class="w-full p-3 border-2 rounded-xl text-center text-2xl tracking-[0.5em] mb-4 outline-none focus:border-blue-500" placeholder="******">
+            <div id="authError" class="text-red-500 text-xs mb-4 text-center hidden">كلمة المرور غير صحيحة!</div>
+            <div class="flex gap-2">
+                <button onclick="verifyPassword()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">دخول</button>
+                <button onclick="closeAuthModal()" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">إلغاء</button>
+            </div>
         </div>
     </div>
 
     <script>
-        const STORAGE_KEY = 'muntashiri_eng_survey';
+        const STORAGE_KEY = 'muntashiri_v2_final';
+        const ADMIN_PASS = '123000';
 
-        // Initialize Questions
         const questions = [
             { id: 'q1', text: '1. على مقياس من 1 إلى 5، كيف تقيم مستوى مادة الإنجليزي الحالي لأبنائكم؟', type: 'rating' },
             { id: 'q2', text: '2. هل تشعر أن محتوى المادة يغطي احتياجات الطلاب بشكل كافٍ؟', type: 'radio', options: ['نعم', 'لا', 'إلى حد ما'] },
             { id: 'q3', text: '3. ما أكثر جانب تحبه في مادة الإنجليزي؟', type: 'select', options: ['القراءة', 'الكتابة', 'المحادثة', 'القواعد', 'غيره'] },
             { id: 'q4', text: '4. ما أكثر جانب ترى أنه يحتاج لتحسين أو تطوير في المادة؟', type: 'textarea' },
-            { id: 'q5', text: '5. هل ترغب في إدخال أنشطة إضافية لتطوير مهارات الطلاب في الإنجليزي؟', type: 'radio', options: ['نعم', 'لا'] },
-            { id: 'q6', text: '6. ما نوع الأنشطة التي تراها مفيدة للطلاب؟', type: 'checkbox', options: ['ورش عمل', 'مسابقات', 'أنشطة تفاعلية', 'تعلم تطبيقات', 'غيره'] },
+            { id: 'q5', text: '5. هل ترغب في إدخال أنشطة إضافية لتطوير مهارات الطلاب؟', type: 'radio', options: ['نعم', 'لا'] },
+            { id: 'q6', text: '6. ما نوع الأنشطة التي تراها مفيدة للطلاب؟', type: 'checkbox', options: ['ورش عمل', 'مسابقات', 'أنشطة تفاعلية', 'تطبيقات تعليمية'] },
             { id: 'q7', text: '7. هل ترى أن استخدام التكنولوجيا سيحسن مستوى الطلاب؟', type: 'radio', options: ['نعم', 'لا', 'غير متأكد'] },
             { id: 'q8', text: '8. هل تشعر أن الطلاب يحصلون على دعم كافي من المعلمين؟', type: 'radio', options: ['نعم', 'لا'] },
             { id: 'q9', text: '9. هل ترغب في تواصل دوري مع المدرسة حول تقدم أبنائك؟', type: 'radio', options: ['نعم', 'لا'] },
-            { id: 'q10', text: '10. بشكل عام، هل ترغب في تطوير المادة لتصبح أكثر تفاعلية وجاذبية؟', type: 'radio', options: ['نعم', 'لا', 'إلى حد ما'] }
+            { id: 'q10', text: '10. هل ترغب في تطوير المادة لتصبح أكثر تفاعلية وجاذبية؟', type: 'radio', options: ['نعم', 'لا', 'إلى حد ما'] }
         ];
 
         function renderQuestions() {
             const container = document.getElementById('questionsContainer');
             container.innerHTML = questions.map(q => {
-                let html = `<div class="p-4 border-r-4 border-blue-500 bg-white shadow-sm rounded-l-lg">
-                    <p class="font-bold text-lg mb-4 text-blue-900">${q.text}</p>`;
+                let html = `<div class="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl hover:border-blue-200 transition-colors">
+                    <p class="font-bold text-lg mb-5 text-blue-900 leading-relaxed">${q.text}</p>`;
                 
                 if (q.type === 'rating') {
-                    html += `<div class="flex gap-4 justify-around max-w-xs">` + 
-                        [1,2,3,4,5].map(n => `<label class="flex flex-col items-center cursor-pointer"><input type="radio" name="${q.id}" value="${n}" required class="w-5 h-5 mb-1"><span>${n}</span></label>`).join('') + `</div>`;
+                    html += `<div class="flex gap-2 justify-between max-w-md mx-auto">` + 
+                        [1,2,3,4,5].map(n => `<label class="flex flex-col items-center cursor-pointer group"><input type="radio" name="${q.id}" value="${n}" required class="w-6 h-6 mb-2 accent-blue-600"><span class="font-bold group-hover:text-blue-600">${n}</span></label>`).join('') + `</div>`;
                 } else if (q.type === 'radio') {
-                    html += `<div class="flex flex-col gap-2">` + 
-                        q.options.map(o => `<label class="flex items-center p-2 border rounded-lg hover:bg-blue-50 cursor-pointer"><input type="radio" name="${q.id}" value="${o}" required class="ml-2"><span>${o}</span></label>`).join('') + `</div>`;
+                    html += `<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">` + 
+                        q.options.map(o => `<label class="flex items-center p-3 border rounded-xl hover:bg-blue-50 cursor-pointer transition-all"><input type="radio" name="${q.id}" value="${o}" required class="ml-3 w-5 h-5 accent-blue-600"><span>${o}</span></label>`).join('') + `</div>`;
                 } else if (q.type === 'select') {
-                    html += `<select name="${q.id}" required class="w-full p-3 border rounded-lg outline-none">
-                        <option value="">اختر...</option>` + q.options.map(o => `<option value="${o}">${o}</option>`).join('') + `</select>`;
+                    html += `<select name="${q.id}" required class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-100">
+                        <option value="">اختر الخيار المناسب...</option>` + q.options.map(o => `<option value="${o}">${o}</option>`).join('') + `</select>`;
                 } else if (q.type === 'textarea') {
-                    html += `<textarea name="${q.id}" required rows="3" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-200" placeholder="اكتب هنا..."></textarea>`;
+                    html += `<textarea name="${q.id}" required rows="3" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-100" placeholder="فضلاً اكتب وجهة نظرك..."></textarea>`;
                 } else if (q.type === 'checkbox') {
-                    html += `<div class="grid grid-cols-2 gap-2">` + 
-                        q.options.map(o => `<label class="flex items-center p-2 border rounded-lg cursor-pointer"><input type="checkbox" name="${q.id}" value="${o}" class="ml-2"><span>${o}</span></label>`).join('') + `</div>`;
+                    html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">` + 
+                        q.options.map(o => `<label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-gray-50"><input type="checkbox" name="${q.id}" value="${o}" class="ml-3 w-5 h-5 accent-blue-600"><span>${o}</span></label>`).join('') + `</div>`;
                 }
                 
                 html += `</div>`;
@@ -150,12 +166,33 @@
 
         renderQuestions();
 
+        function handleAdminAccess() {
+            document.getElementById('authModal').classList.remove('hidden');
+            document.getElementById('adminPassword').focus();
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('authError').classList.add('hidden');
+        }
+
+        function verifyPassword() {
+            const pass = document.getElementById('adminPassword').value;
+            if (pass === ADMIN_PASS) {
+                closeAuthModal();
+                showTab('admin-tab');
+            } else {
+                document.getElementById('authError').classList.remove('hidden');
+            }
+        }
+
         function showTab(id) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             const isS = id === 'survey-tab';
-            document.getElementById('btn-survey').className = isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
-            document.getElementById('btn-admin').className = !isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
+            document.getElementById('btn-survey').className = isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white shadow-md' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
+            document.getElementById('btn-admin').className = !isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white shadow-md' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
             if (id === 'admin-tab') renderAdmin();
         }
 
@@ -193,51 +230,73 @@
             
             body.innerHTML = '';
             if(results.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-400">لا توجد ردود حالياً</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400 italic font-medium">لا توجد بيانات مسجلة حالياً</td></tr>';
                 stats.innerHTML = '';
                 return;
             }
 
             const avg = (results.reduce((a,b)=>a+parseInt(b.q1),0)/results.length).toFixed(1);
             stats.innerHTML = `
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100"><p class="text-blue-600 text-sm">عدد المشاركين</p><p class="text-2xl font-bold">${results.length}</p></div>
-                <div class="bg-green-50 p-4 rounded-xl border border-green-100"><p class="text-green-600 text-sm">متوسط التقييم</p><p class="text-2xl font-bold">${avg} / 5</p></div>
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100"><p class="text-indigo-600 text-sm">أحدث مشاركة</p><p class="text-md font-bold">${results[results.length-1].studentName}</p></div>
+                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center"><p class="text-blue-600 text-xs font-bold uppercase mb-1">الردود</p><p class="text-3xl font-bold">${results.length}</p></div>
+                <div class="bg-green-50 p-4 rounded-2xl border border-green-100 text-center"><p class="text-green-600 text-xs font-bold uppercase mb-1">متوسط الرضا</p><p class="text-3xl font-bold">${avg}/5</p></div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-center"><p class="text-indigo-600 text-xs font-bold uppercase mb-1">نسبة المشاركة</p><p class="text-3xl font-bold">${Math.round((avg/5)*100)}%</p></div>
             `;
 
             results.slice().reverse().forEach((r, idx) => {
                 const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b last:border-0";
                 tr.innerHTML = `
-                    <td class="p-4 border-b font-bold">${r.studentName}</td>
-                    <td class="p-4 border-b">${r.parentName}</td>
-                    <td class="p-4 border-b">${r.classSection}</td>
-                    <td class="p-4 border-b"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">${r.q1}</span></td>
-                    <td class="p-4 border-b"><button onclick="viewRow(${results.length-1-idx})" class="text-blue-600 underline text-sm">التفاصيل</button></td>
+                    <td class="p-4 font-bold text-gray-800">${r.studentName}</td>
+                    <td class="p-4 text-gray-600">${r.parentName}</td>
+                    <td class="p-4 text-gray-500 font-medium">${r.classSection}</td>
+                    <td class="p-4"><span class="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">${r.q1}</span></td>
+                    <td class="p-4 text-center"><button onclick="viewDetails(${results.length-1-idx})" class="text-blue-600 font-bold hover:underline">عرض</button></td>
                 `;
                 body.appendChild(tr);
             });
         }
 
-        function viewRow(i) {
+        function viewDetails(i) {
             const d = JSON.parse(localStorage.getItem(STORAGE_KEY))[i];
-            alert(`الطالب: ${d.studentName}\nولي الأمر: ${d.parentName}\nالرأي في التطوير: ${d.q4}\nالتفاعل: ${d.q10}`);
+            const info = `
+                الطالب: ${d.studentName}
+                ولي الأمر: ${d.parentName}
+                الشعبة: ${d.classSection}
+                
+                1. التقييم: ${d.q1}/5
+                2. كفاية المحتوى: ${d.q2}
+                3. المفضل: ${d.q3}
+                4. المقترحات: ${d.q4}
+                6. الأنشطة: ${d.q6 ? d.q6.join(', ') : 'لا يوجد'}
+                7. التقنية: ${d.q7}
+                8. الدعم: ${d.q8}
+                9. التواصل: ${d.q9}
+                10. التفاعلية: ${d.q10}
+            `;
+            alert(info);
         }
 
         function exportToExcel() {
             const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            if (data.length === 0) return alert('لا توجد بيانات!');
+            if (data.length === 0) return alert('لا توجد بيانات للتصدير!');
+            
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "الاستطلاع");
-            XLSX.writeFile(wb, "نتائج_استطلاع_المنتشري.xlsx");
+            XLSX.utils.book_append_sheet(wb, ws, "EnglishSurvey");
+            XLSX.writeFile(wb, "Survey_Results_Almuntashiri.xlsx");
         }
 
         function clearData() {
-            if(confirm('سيتم حذف كل البيانات، هل أنت متأكد؟')) {
+            if(confirm('هل أنت متأكد من حذف كافة السجلات؟ لا يمكن التراجع!')) {
                 localStorage.removeItem(STORAGE_KEY);
                 renderAdmin();
             }
         }
+
+        // Enter key for password
+        document.getElementById('adminPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') verifyPassword();
+        });
     </script>
 </body>
 </html>
