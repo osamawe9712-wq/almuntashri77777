@@ -7,12 +7,49 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyB67LzbZCfokK2GLUOpM3G7IqNFniicCxo",
+            authDomain: "astidyan.firebaseapp.com",
+            projectId: "astidyan",
+            storageBucket: "astidyan.firebasestorage.app",
+            messagingSenderId: "459814418834",
+            appId: "1:459814418834:web:7b5feb8f0b3c4b26b0a94b",
+            measurementId: "G-BY8YKF3LBD"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // App Constants
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'muntashiri_survey';
+        const COLLECTION_PATH = `artifacts/${appId}/public/data/responses`;
+
+        window.db = db;
+        window.auth = auth;
+        window.COLLECTION_PATH = COLLECTION_PATH;
+
+        // Sign in Anonymously
+        signInAnonymously(auth).catch(error => console.error("Auth Error:", error));
+    </script>
+
     <style>
         body { font-family: 'Tajawal', sans-serif; background-color: #f8fafc; }
         .gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+        .loading-spinner { border-top-color: #2563eb; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="text-gray-800">
@@ -35,7 +72,6 @@
         <section id="survey-tab" class="tab-content active">
             <div class="bg-white rounded-2xl shadow-lg p-6 md:p-10 border border-gray-100">
                 <form id="surveyForm" class="space-y-8">
-                    <!-- Personal Info -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-xl border border-blue-100">
                         <div class="md:col-span-2 border-b border-blue-100 pb-2"><h3 class="font-bold text-blue-800">بيانات الهوية</h3></div>
                         <div>
@@ -52,11 +88,11 @@
                         </div>
                     </div>
 
-                    <!-- Questions Container -->
                     <div class="space-y-10" id="questionsContainer"></div>
 
-                    <button type="submit" class="w-full gradient-header text-white font-bold py-4 rounded-xl shadow-lg hover:opacity-90 transition-all text-lg">
-                        إرسال الاستطلاع
+                    <button type="submit" id="submitBtn" class="w-full gradient-header text-white font-bold py-4 rounded-xl shadow-lg hover:opacity-90 transition-all text-lg flex justify-center items-center">
+                        <span>إرسال الاستطلاع</span>
+                        <div id="btnLoader" class="hidden w-5 h-5 border-2 border-white rounded-full loading-spinner mr-3"></div>
                     </button>
                 </form>
             </div>
@@ -72,7 +108,7 @@
                     </div>
                     <div class="flex gap-2">
                         <button onclick="exportToExcel()" class="bg-green-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-sm">تصدير Excel</button>
-                        <button onclick="clearData()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm border border-red-100 hover:bg-red-100">مسح البيانات</button>
+                        <button onclick="clearAllData()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm border border-red-100 hover:bg-red-100">مسح البيانات</button>
                     </div>
                 </div>
 
@@ -83,9 +119,9 @@
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 uppercase text-xs">
                                 <th class="p-4 border-b">الطالب</th>
-                                <th class="p-4 border-b">ولي الأمر</th>
                                 <th class="p-4 border-b">الشعبة</th>
                                 <th class="p-4 border-b">التقييم</th>
+                                <th class="p-4 border-b">التاريخ</th>
                                 <th class="p-4 border-b text-center">إجراء</th>
                             </tr>
                         </thead>
@@ -96,21 +132,19 @@
         </section>
     </main>
 
-    <!-- Success Modal -->
+    <!-- Modals -->
     <div id="successModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
         <div class="bg-white p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl">
             <div class="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold">✓</div>
             <h3 class="text-2xl font-bold mb-2">تم بنجاح</h3>
-            <p class="text-gray-600 mb-6 font-medium">تم استلام ردكم وحفظه ضمن النتائج.</p>
+            <p class="text-gray-600 mb-6 font-medium">تم حفظ ردكم في قاعدة البيانات السحابية بنجاح.</p>
             <button onclick="closeModal()" class="w-full py-3 gradient-header text-white rounded-xl font-bold">إغلاق</button>
         </div>
     </div>
 
-    <!-- Auth Password Modal -->
     <div id="authModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
         <div class="bg-white p-6 rounded-2xl max-w-sm w-full shadow-2xl">
             <h3 class="text-xl font-bold mb-4 text-center">الدخول للنتائج</h3>
-            <p class="text-sm text-gray-500 mb-4 text-center">يرجى إدخال كلمة المرور الخاصة بالأستاذ محمد المنتشري</p>
             <input type="password" id="adminPassword" class="w-full p-3 border-2 rounded-xl text-center text-2xl tracking-[0.5em] mb-4 outline-none focus:border-blue-500" placeholder="******">
             <div id="authError" class="text-red-500 text-xs mb-4 text-center hidden">كلمة المرور غير صحيحة!</div>
             <div class="flex gap-2">
@@ -120,9 +154,24 @@
         </div>
     </div>
 
-    <script>
-        const STORAGE_KEY = 'muntashiri_v2_final';
+    <div id="detailsModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="text-xl font-bold text-blue-900">تفاصيل الرد</h3>
+                <button onclick="closeDetails()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <div id="detailsContent" class="p-6 overflow-y-auto space-y-4 text-right"></div>
+            <div class="p-6 border-t bg-gray-50">
+                <button onclick="closeDetails()" class="w-full py-3 bg-gray-200 text-gray-800 rounded-xl font-bold">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, orderBy, getFirestore } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
         const ADMIN_PASS = '123000';
+        let allResponses = [];
 
         const questions = [
             { id: 'q1', text: '1. على مقياس من 1 إلى 5، كيف تقيم مستوى مادة الإنجليزي الحالي لأبنائكم؟', type: 'rating' },
@@ -137,7 +186,7 @@
             { id: 'q10', text: '10. هل ترغب في تطوير المادة لتصبح أكثر تفاعلية وجاذبية؟', type: 'radio', options: ['نعم', 'لا', 'إلى حد ما'] }
         ];
 
-        function renderQuestions() {
+        window.renderQuestions = () => {
             const container = document.getElementById('questionsContainer');
             container.innerHTML = questions.map(q => {
                 let html = `<div class="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl hover:border-blue-200 transition-colors">
@@ -158,145 +207,166 @@
                     html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">` + 
                         q.options.map(o => `<label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-gray-50"><input type="checkbox" name="${q.id}" value="${o}" class="ml-3 w-5 h-5 accent-blue-600"><span>${o}</span></label>`).join('') + `</div>`;
                 }
-                
                 html += `</div>`;
                 return html;
             }).join('');
-        }
+        };
 
-        renderQuestions();
+        window.renderQuestions();
 
-        function handleAdminAccess() {
-            document.getElementById('authModal').classList.remove('hidden');
-            document.getElementById('adminPassword').focus();
-        }
-
-        function closeAuthModal() {
+        // Admin Auth
+        window.handleAdminAccess = () => document.getElementById('authModal').classList.remove('hidden');
+        window.closeAuthModal = () => {
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('adminPassword').value = '';
             document.getElementById('authError').classList.add('hidden');
-        }
-
-        function verifyPassword() {
-            const pass = document.getElementById('adminPassword').value;
-            if (pass === ADMIN_PASS) {
+        };
+        window.verifyPassword = () => {
+            if (document.getElementById('adminPassword').value === ADMIN_PASS) {
                 closeAuthModal();
                 showTab('admin-tab');
             } else {
                 document.getElementById('authError').classList.remove('hidden');
             }
-        }
+        };
 
-        function showTab(id) {
+        window.showTab = (id) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             const isS = id === 'survey-tab';
             document.getElementById('btn-survey').className = isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white shadow-md' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
             document.getElementById('btn-admin').className = !isS ? 'flex-1 py-2 px-4 rounded-xl font-bold transition-all bg-blue-600 text-white shadow-md' : 'flex-1 py-2 px-4 rounded-xl font-bold transition-all text-gray-500';
-            if (id === 'admin-tab') renderAdmin();
-        }
+            if (id === 'admin-tab') listenToData();
+        };
 
-        document.getElementById('surveyForm').addEventListener('submit', function(e) {
+        // Submit Logic
+        document.getElementById('surveyForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const formData = new FormData(this);
-            const data = {};
-            formData.forEach((val, key) => {
-                if (key === 'q6') {
-                    if(!data[key]) data[key] = [];
-                    data[key].push(val);
-                } else {
-                    data[key] = val;
-                }
-            });
-            data.date = new Date().toLocaleString('ar-SA');
+            const btn = document.getElementById('submitBtn');
+            const loader = document.getElementById('btnLoader');
             
-            const results = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            results.push(data);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
-            
-            document.getElementById('successModal').classList.remove('hidden');
-            this.reset();
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            try {
+                const formData = new FormData(this);
+                const data = {};
+                formData.forEach((val, key) => {
+                    if (key === 'q6') {
+                        if(!data[key]) data[key] = [];
+                        data[key].push(val);
+                    } else {
+                        data[key] = val;
+                    }
+                });
+                data.timestamp = Date.now();
+                data.dateString = new Date().toLocaleString('ar-SA');
+
+                await addDoc(collection(window.db, window.COLLECTION_PATH), data);
+                
+                document.getElementById('successModal').classList.remove('hidden');
+                this.reset();
+            } catch (error) {
+                console.error("Error saving:", error);
+                alert("حدث خطأ أثناء الحفظ، يرجى المحاولة لاحقاً.");
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
         });
 
-        function closeModal() {
-            document.getElementById('successModal').classList.add('hidden');
-            window.scrollTo({top: 0, behavior: 'smooth'});
+        // Data Management
+        let unsubscribe = null;
+        function listenToData() {
+            if (unsubscribe) unsubscribe();
+            const q = query(collection(window.db, window.COLLECTION_PATH), orderBy("timestamp", "desc"));
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                allResponses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderAdminTable();
+            }, (error) => console.error("Listen Error:", error));
         }
 
-        function renderAdmin() {
-            const results = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        function renderAdminTable() {
             const body = document.getElementById('resultsBody');
             const stats = document.getElementById('statsSummary');
             
-            body.innerHTML = '';
-            if(results.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400 italic font-medium">لا توجد بيانات مسجلة حالياً</td></tr>';
+            if(allResponses.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400 italic">لا توجد بيانات سحابية</td></tr>';
                 stats.innerHTML = '';
                 return;
             }
 
-            const avg = (results.reduce((a,b)=>a+parseInt(b.q1),0)/results.length).toFixed(1);
+            const avg = (allResponses.reduce((a,b)=>a+parseInt(b.q1||0),0)/allResponses.length).toFixed(1);
             stats.innerHTML = `
-                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center"><p class="text-blue-600 text-xs font-bold uppercase mb-1">الردود</p><p class="text-3xl font-bold">${results.length}</p></div>
-                <div class="bg-green-50 p-4 rounded-2xl border border-green-100 text-center"><p class="text-green-600 text-xs font-bold uppercase mb-1">متوسط الرضا</p><p class="text-3xl font-bold">${avg}/5</p></div>
-                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-center"><p class="text-indigo-600 text-xs font-bold uppercase mb-1">نسبة المشاركة</p><p class="text-3xl font-bold">${Math.round((avg/5)*100)}%</p></div>
+                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center"><p class="text-blue-600 text-xs font-bold mb-1">إجمالي الردود</p><p class="text-3xl font-bold">${allResponses.length}</p></div>
+                <div class="bg-green-50 p-4 rounded-2xl border border-green-100 text-center"><p class="text-green-600 text-xs font-bold mb-1">متوسط التقييم</p><p class="text-3xl font-bold">${avg}/5</p></div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-center"><p class="text-indigo-600 text-xs font-bold mb-1">نسبة الرضا</p><p class="text-3xl font-bold">${Math.round((avg/5)*100)}%</p></div>
             `;
 
-            results.slice().reverse().forEach((r, idx) => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 border-b last:border-0";
-                tr.innerHTML = `
+            body.innerHTML = allResponses.map((r, idx) => `
+                <tr class="hover:bg-gray-50 border-b last:border-0">
                     <td class="p-4 font-bold text-gray-800">${r.studentName}</td>
-                    <td class="p-4 text-gray-600">${r.parentName}</td>
-                    <td class="p-4 text-gray-500 font-medium">${r.classSection}</td>
+                    <td class="p-4 text-gray-500">${r.classSection}</td>
                     <td class="p-4"><span class="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">${r.q1}</span></td>
-                    <td class="p-4 text-center"><button onclick="viewDetails(${results.length-1-idx})" class="text-blue-600 font-bold hover:underline">عرض</button></td>
-                `;
-                body.appendChild(tr);
-            });
+                    <td class="p-4 text-xs text-gray-400">${r.dateString.split(' ')[0]}</td>
+                    <td class="p-4 text-center">
+                        <button onclick="viewFullDetails(${idx})" class="text-blue-600 font-bold hover:underline">عرض</button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
-        function viewDetails(i) {
-            const d = JSON.parse(localStorage.getItem(STORAGE_KEY))[i];
-            const info = `
-                الطالب: ${d.studentName}
-                ولي الأمر: ${d.parentName}
-                الشعبة: ${d.classSection}
-                
-                1. التقييم: ${d.q1}/5
-                2. كفاية المحتوى: ${d.q2}
-                3. المفضل: ${d.q3}
-                4. المقترحات: ${d.q4}
-                6. الأنشطة: ${d.q6 ? d.q6.join(', ') : 'لا يوجد'}
-                7. التقنية: ${d.q7}
-                8. الدعم: ${d.q8}
-                9. التواصل: ${d.q9}
-                10. التفاعلية: ${d.q10}
+        window.viewFullDetails = (idx) => {
+            const d = allResponses[idx];
+            const content = document.getElementById('detailsContent');
+            let html = `
+                <div class="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-2xl mb-6">
+                    <div><p class="text-xs text-blue-500">اسم الطالب</p><p class="font-bold">${d.studentName}</p></div>
+                    <div><p class="text-xs text-blue-500">ولي الأمر</p><p class="font-bold">${d.parentName}</p></div>
+                    <div><p class="text-xs text-blue-500">الشعبة</p><p class="font-bold">${d.classSection}</p></div>
+                    <div><p class="text-xs text-blue-500">التاريخ</p><p class="font-bold text-xs">${d.dateString}</p></div>
+                </div>
+                <div class="space-y-4">
             `;
-            alert(info);
-        }
 
-        function exportToExcel() {
-            const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            if (data.length === 0) return alert('لا توجد بيانات للتصدير!');
-            
-            const ws = XLSX.utils.json_to_sheet(data);
+            questions.forEach(q => {
+                const answer = d[q.id];
+                html += `
+                    <div class="border-b pb-3">
+                        <p class="text-sm font-bold text-gray-700 mb-1">${q.text}</p>
+                        <p class="text-blue-600 bg-blue-50 inline-block px-3 py-1 rounded-lg text-sm">${Array.isArray(answer) ? answer.join(', ') : (answer || 'لا يوجد إجابة')}</p>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            content.innerHTML = html;
+            document.getElementById('detailsModal').classList.remove('hidden');
+        };
+
+        window.closeDetails = () => document.getElementById('detailsModal').classList.add('hidden');
+        window.closeModal = () => {
+            document.getElementById('successModal').classList.add('hidden');
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        window.exportToExcel = () => {
+            if (allResponses.length === 0) return alert('لا توجد بيانات للتصدير!');
+            const ws = XLSX.utils.json_to_sheet(allResponses);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "EnglishSurvey");
-            XLSX.writeFile(wb, "Survey_Results_Almuntashiri.xlsx");
-        }
+            XLSX.utils.book_append_sheet(wb, ws, "نتائج_الاستطلاع");
+            XLSX.writeFile(wb, "English_Survey_Cloud.xlsx");
+        };
 
-        function clearData() {
-            if(confirm('هل أنت متأكد من حذف كافة السجلات؟ لا يمكن التراجع!')) {
-                localStorage.removeItem(STORAGE_KEY);
-                renderAdmin();
-            }
-        }
+        window.clearAllData = async () => {
+            if(!confirm('سيتم حذف كافة البيانات من السحابة نهائياً. هل أنت متأكد؟')) return;
+            const querySnapshot = await getDocs(collection(window.db, window.COLLECTION_PATH));
+            const deletePromises = querySnapshot.docs.map(d => deleteDoc(doc(window.db, window.COLLECTION_PATH, d.id)));
+            await Promise.all(deletePromises);
+            alert('تم مسح جميع البيانات بنجاح');
+        };
 
-        // Enter key for password
-        document.getElementById('adminPassword').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') verifyPassword();
-        });
+        document.getElementById('adminPassword').addEventListener('keypress', (e) => { if (e.key === 'Enter') window.verifyPassword(); });
     </script>
 </body>
 </html>
